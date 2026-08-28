@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laboratório de Controle de Biorreator Alcoólico</title>
+<style>
+:root{
+  --bg:#0b1020; --panel:#121a2f; --panel2:#17223d; --line:#2b3a61;
+  --text:#eef3ff; --muted:#aebbd8; --accent:#5fd3ff; --accent2:#8ee3b0;
+  --warn:#ffca6b; --danger:#ff7d8f; --purple:#b49cff; --bio:#79d89b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  background:linear-gradient(180deg,#09101d,#0d1530 55%,#0b1020); color:var(--text);
+}
+header{padding:18px 18px 10px;max-width:1600px;margin:auto}
+h1{font-size:clamp(1.35rem,2.5vw,2rem);margin:0 0 6px}
+.subtitle{color:var(--muted);line-height:1.45;max-width:1150px}
+main{max-width:1600px;margin:auto;padding:10px 18px 28px;display:grid;gap:14px}
+.top{display:grid;grid-template-columns:350px minmax(430px,1fr) 420px;gap:14px;align-items:start}
+.card{background:rgba(18,26,47,.95);border:1px solid var(--line);border-radius:14px;padding:14px}
+.card h2{font-size:1rem;margin:0 0 11px}
+.card h3{font-size:.92rem;margin:14px 0 8px;color:#dce7ff}
+.row{display:grid;grid-template-columns:1fr 112px;gap:9px;align-items:center;margin:8px 0}
+label{font-size:.86rem;color:#dbe5fb}
+input[type=number],select{
+ width:100%;padding:8px 9px;border-radius:8px;border:1px solid #3a4b76;
+ background:#0c1428;color:var(--text);font-size:16px
+}
+button{
+ border:1px solid #40517c;background:#182645;color:white;border-radius:9px;
+ padding:9px 12px;font-size:.86rem;cursor:pointer;min-height:40px
+}
+button.primary{background:#126d91;border-color:#2688ad}
+button.good{background:#176846;border-color:#278965}
+button.warn{background:#744e18;border-color:#946523}
+button.danger{background:#6c2634;border-color:#963b4d}
+.buttons{display:flex;gap:8px;flex-wrap:wrap}
+.small{font-size:.78rem;color:var(--muted);line-height:1.45}
+.formula{background:#0b1326;border:1px solid #2e406c;border-radius:10px;padding:10px;font-family:Georgia,serif;line-height:1.55;color:#f4f7ff}
+.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+.tabbtn.active{background:#29416d;border-color:#5372ab}
+.loop{display:none}
+.loop.active{display:block}
+.checks{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:8px 0}
+.check{display:flex;align-items:center;gap:7px;background:#0c1428;border:1px solid #33446e;border-radius:9px;padding:9px}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.metric{background:#0c1428;border:1px solid #31436f;border-radius:10px;padding:10px}
+.metric .k{font-size:.73rem;color:var(--muted)}
+.metric .v{font-size:1.07rem;font-weight:700;margin-top:2px}
+#reactorCanvas,#plotCanvas{width:100%;display:block;background:#091224;border:1px solid #2c3b62;border-radius:12px}
+#reactorCanvas{height:410px}
+#plotCanvas{height:410px}
+.status{padding:9px 10px;border-radius:9px;background:#0c1428;border:1px solid #30416c;font-size:.82rem;color:#dce6ff;margin-top:9px}
+.bottom{display:grid;grid-template-columns:1.45fr .55fr;gap:14px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:.77rem;color:var(--muted)}
+.dot{display:inline-block;width:10px;height:3px;margin-right:5px;vertical-align:middle;border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:.81rem}
+td{padding:6px;border-bottom:1px solid #26375e;color:#dbe5fb}
+td:first-child{color:var(--muted)}
+.pill{display:inline-block;padding:3px 7px;border-radius:999px;background:#1b2b4d;color:#cfe8ff;font-size:.71rem}
+@media(max-width:1180px){.top{grid-template-columns:330px 1fr}.right{grid-column:1/-1}.bottom{grid-template-columns:1fr}}
+@media(max-width:760px){main,header{padding-left:10px;padding-right:10px}.top{grid-template-columns:1fr}.row{grid-template-columns:1fr 105px}.metrics{grid-template-columns:repeat(2,1fr)}#reactorCanvas{height:350px}#plotCanvas{height:340px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Laboratório de Controle de Biorreator Fermentativo Alcoólico</h1>
+  <div class="subtitle">
+    Simulação dinâmica didática de fermentação alcoólica com levedura. Explore batelada e fed-batch,
+    crescimento celular, consumo de glicose, produção de etanol e malhas feedback de temperatura, pH e oxigênio dissolvido.
+  </div>
+</header>
+
+<main>
+<div class="top">
+
+<section class="card">
+  <h2>1. Processo fermentativo</h2>
+  <div class="row"><label for="operation">Modo de operação</label>
+    <select id="operation"><option value="batch" selected>Batelada</option><option value="fed">Fed-batch</option></select>
+  </div>
+  <div class="row"><label for="V0">Volume inicial (L)</label><input id="V0" type="number" min="1" max="100000" step="10" value="1000"></div>
+  <div class="row"><label for="X0">Biomassa inicial X₀ (g/L)</label><input id="X0" type="number" min="0.01" max="100" step="0.1" value="2.0"></div>
+  <div class="row"><label for="S0">Glicose inicial S₀ (g/L)</label><input id="S0" type="number" min="0" max="500" step="1" value="120"></div>
+  <div class="row"><label for="P0">Etanol inicial P₀ (g/L)</label><input id="P0" type="number" min="0" max="200" step="0.5" value="0"></div>
+  <div class="row"><label for="Sin">Glicose na alimentação Sᵢₙ (g/L)</label><input id="Sin" type="number" min="0" max="800" step="5" value="400"></div>
+  <div class="row"><label for="F">Alimentação F (L/h)</label><input id="F" type="number" min="0" max="10000" step="5" value="50"></div>
+
+  <h3>Parâmetros cinéticos</h3>
+  <div class="row"><label for="mumax">μmax (h⁻¹)</label><input id="mumax" type="number" min="0" max="2" step="0.01" value="0.38"></div>
+  <div class="row"><label for="Ks">Ks (g/L)</label><input id="Ks" type="number" min="0.01" max="100" step="0.1" value="1.5"></div>
+  <div class="row"><label for="Yxs">Yx/s (g/g)</label><input id="Yxs" type="number" min="0.01" max="1" step="0.01" value="0.10"></div>
+  <div class="row"><label for="Yps">Yp/s (g/g)</label><input id="Yps" type="number" min="0.01" max="1" step="0.01" value="0.45"></div>
+  <div class="row"><label for="kd">kd (h⁻¹)</label><input id="kd" type="number" min="0" max="1" step="0.005" value="0.01"></div>
+
+  <div class="formula">
+    μ = μmax · S/(Ks+S) · f<sub>T</sub> · f<sub>pH</sub> · f<sub>P</sub><br>
+    dX/dt = (μ − k<sub>d</sub> − D)X<br>
+    dS/dt = D(S<sub>in</sub>−S) − q<sub>S</sub>X<br>
+    dP/dt = Y<sub>P/S</sub>q<sub>S</sub>X − DP
+  </div>
+</section>
+
+<section class="card">
+  <h2>2. Biorreator e variáveis</h2>
+  <canvas id="reactorCanvas" width="950" height="620" aria-label="Biorreator fermentativo animado"></canvas>
+  <div class="metrics">
+    <div class="metric"><div class="k">Biomassa X</div><div class="v" id="mX">—</div></div>
+    <div class="metric"><div class="k">Glicose S</div><div class="v" id="mS">—</div></div>
+    <div class="metric"><div class="k">Etanol P</div><div class="v" id="mP">—</div></div>
+    <div class="metric"><div class="k">Temperatura</div><div class="v" id="mT">—</div></div>
+    <div class="metric"><div class="k">pH</div><div class="v" id="mPH">—</div></div>
+    <div class="metric"><div class="k">DO</div><div class="v" id="mDO">—</div></div>
+  </div>
+  <div class="status" id="status">Simulador pronto.</div>
+</section>
+
+<section class="card right">
+  <h2>3. Malhas de controle</h2>
+  <div class="tabs">
+    <button type="button" class="tabbtn active" data-tab="temp">Temperatura</button>
+    <button type="button" class="tabbtn" data-tab="ph">pH</button>
+    <button type="button" class="tabbtn" data-tab="do">DO</button>
+  </div>
+
+  <div id="loop-temp" class="loop active">
+    <div class="row"><label>Modo</label><select id="tempMode"><option value="auto">Automático</option><option value="manual">Manual</option></select></div>
+    <div class="row"><label>SP temperatura (°C)</label><input id="tempSP" type="number" step="0.1" value="32"></div>
+    <div class="checks">
+      <label class="check"><input id="tempP" type="checkbox" checked>P</label>
+      <label class="check"><input id="tempI" type="checkbox" checked>I</label>
+      <label class="check"><input id="tempD" type="checkbox">D</label>
+    </div>
+    <div class="row"><label>Kp</label><input id="tempKp" type="number" step="0.1" value="8"></div>
+    <div class="row"><label>Ki</label><input id="tempKi" type="number" step="0.1" value="1.6"></div>
+    <div class="row"><label>Kd</label><input id="tempKd" type="number" step="0.1" value="0.5"></div>
+    <div class="row"><label>Saída manual (%)</label><input id="tempManual" type="number" min="0" max="100" value="35"></div>
+    <p class="small">Atuador: válvula de água de resfriamento. Quanto maior a abertura, maior a remoção de calor.</p>
+  </div>
+
+  <div id="loop-ph" class="loop">
+    <div class="row"><label>Modo</label><select id="phMode"><option value="auto">Automático</option><option value="manual">Manual</option></select></div>
+    <div class="row"><label>SP pH</label><input id="phSP" type="number" step="0.05" value="5.0"></div>
+    <div class="checks">
+      <label class="check"><input id="phP" type="checkbox" checked>P</label>
+      <label class="check"><input id="phI" type="checkbox" checked>I</label>
+      <label class="check"><input id="phD" type="checkbox">D</label>
+    </div>
+    <div class="row"><label>Kp</label><input id="phKp" type="number" step="0.1" value="25"></div>
+    <div class="row"><label>Ki</label><input id="phKi" type="number" step="0.1" value="6"></div>
+    <div class="row"><label>Kd</label><input id="phKd" type="number" step="0.1" value="0.5"></div>
+    <div class="row"><label>Saída manual (%)</label><input id="phManual" type="number" min="-100" max="100" value="0"></div>
+    <p class="small">Atuador split-range simplificado: saída positiva adiciona base; negativa adiciona ácido.</p>
+  </div>
+
+  <div id="loop-do" class="loop">
+    <div class="row"><label>Modo</label><select id="doMode"><option value="auto">Automático</option><option value="manual">Manual</option></select></div>
+    <div class="row"><label>SP DO (%)</label><input id="doSP" type="number" step="1" value="25"></div>
+    <div class="checks">
+      <label class="check"><input id="doP" type="checkbox" checked>P</label>
+      <label class="check"><input id="doI" type="checkbox" checked>I</label>
+      <label class="check"><input id="doD" type="checkbox">D</label>
+    </div>
+    <div class="row"><label>Kp</label><input id="doKp" type="number" step="0.1" value="1.4"></div>
+    <div class="row"><label>Ki</label><input id="doKi" type="number" step="0.1" value="0.25"></div>
+    <div class="row"><label>Kd</label><input id="doKd" type="number" step="0.1" value="0.1"></div>
+    <div class="row"><label>Saída manual (%)</label><input id="doManual" type="number" min="0" max="100" value="35"></div>
+    <p class="small">Atuador: intensidade de aeração/agitação, representada por um sinal de 0–100% que altera kLa.</p>
+  </div>
+
+  <h3>Perturbações</h3>
+  <div class="buttons">
+    <button type="button" id="heatUp" class="warn">T ambiente +5°C</button>
+    <button type="button" id="acidPulse">Pulso ácido</button>
+    <button type="button" id="oxygenDrop">kLa −40%</button>
+    <button type="button" id="feedUp" class="good">F +25%</button>
+  </div>
+
+  <h3>Execução</h3>
+  <div class="row"><label>Velocidade</label><select id="speed"><option value="1">1×</option><option value="3" selected>3×</option><option value="10">10×</option><option value="30">30×</option></select></div>
+  <div class="buttons">
+    <button id="start" class="primary" type="button">Iniciar</button>
+    <button id="pause" type="button">Pausar</button>
+    <button id="reset" class="danger" type="button">Reiniciar</button>
+  </div>
+</section>
+</div>
+
+<div class="bottom">
+<section class="card">
+  <h2>4. Resposta dinâmica</h2>
+  <canvas id="plotCanvas" width="1200" height="560" aria-label="Gráfico dinâmico do bioprocesso"></canvas>
+  <div class="legend">
+    <span><span class="dot" style="background:#79d89b"></span>X</span>
+    <span><span class="dot" style="background:#5fd3ff"></span>S</span>
+    <span><span class="dot" style="background:#ffca6b"></span>P</span>
+    <span><span class="dot" style="background:#ff7d8f"></span>T</span>
+    <span><span class="dot" style="background:#b49cff"></span>pH</span>
+    <span><span class="dot" style="background:#8ee3b0"></span>DO</span>
+  </div>
+</section>
+
+<section class="card">
+  <h2>5. Diagnóstico didático</h2>
+  <table>
+    <tr><td>Tempo</td><td id="dTime">—</td></tr>
+    <tr><td>Volume</td><td id="dV">—</td></tr>
+    <tr><td>μ efetivo</td><td id="dMu">—</td></tr>
+    <tr><td>Taxa de consumo qS</td><td id="dQs">—</td></tr>
+    <tr><td>Produtividade P</td><td id="dProd">—</td></tr>
+    <tr><td>Saída T</td><td id="dUT">—</td></tr>
+    <tr><td>Saída pH</td><td id="dUPH">—</td></tr>
+    <tr><td>Saída DO</td><td id="dUDO">—</td></tr>
+  </table>
+  <div class="status">
+    <span class="pill">T</span> controlador manipula resfriamento<br><br>
+    <span class="pill">pH</span> controlador manipula ácido/base<br><br>
+    <span class="pill">DO</span> controlador manipula kLa
+  </div>
+  <p class="small">O modelo é intencionalmente didático: representa as principais causalidades sem pretender substituir um modelo cinético validado para uma cepa/processo específico.</p>
+</section>
+</div>
+</main>
+
+<script>
+(() => {
+'use strict';
+const $=id=>document.getElementById(id);
+const rc=$('reactorCanvas').getContext('2d'), reactor=$('reactorCanvas');
+const pc=$('plotCanvas').getContext('2d'), plot=$('plotCanvas');
+
+let running=false,last=0,acc=0,t=0;
+let X,S,P,V,T,pH,DO;
+let ambient=25, klaFactor=1, acidPulse=0;
+let hist=[], muEff=0, qS=0;
+let uT=35,uPH=0,uDO=35;
+
+const ctl={
+ temp:{integ:0,prev:0},
+ ph:{integ:0,prev:0},
+ do:{integ:0,prev:0}
+};
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function n(id,f=0){const v=parseFloat($(id).value);return Number.isFinite(v)?v:f}
+function resize(c,ctx,minH){const r=c.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2),w=Math.max(300,Math.round(r.width*d)),h=Math.max(minH,Math.round(r.height*d));if(c.width!==w||c.height!==h){c.width=w;c.height=h}ctx.setTransform(d,0,0,d,0,0);return {w:r.width,h:r.height}}
+function pid(prefix,pv,sp,dt,min,max,direct=true){
+  const mode=$(prefix+'Mode').value;
+  if(mode==='manual') return clamp(n(prefix+'Manual',0),min,max);
+  const e=sp-pv;
+  const kp=n(prefix+'Kp',0),ki=n(prefix+'Ki',0),kd=n(prefix+'Kd',0);
+  const c=ctl[prefix];
+  const de=(e-c.prev)/dt;
+  const Pterm=$(prefix+'P').checked?kp*e:0;
+  if($(prefix+'I').checked)c.integ+=e*dt; else c.integ=0;
+  const Iterm=$(prefix+'I').checked?ki*c.integ:0;
+  const Dterm=$(prefix+'D').checked?kd*de:0;
+  const sign=direct?1:-1;
+  const raw=sign*(Pterm+Iterm+Dterm);
+  const out=clamp(raw,min,max);
+  if(raw!==out && $(prefix+'I').checked){
+    const pushes=(raw>max&&sign*e>0)||(raw<min&&sign*e<0);
+    if(pushes)c.integ-=e*dt;
+  }
+  c.prev=e;
+  return out;
+}
+function reset(){
+  t=0;X=n('X0',2);S=n('S0',120);P=n('P0',0);V=n('V0',1000);
+  T=32;pH=5.0;DO=25;ambient=25;klaFactor=1;acidPulse=0;
+  hist=[];muEff=0;qS=0;uT=35;uPH=0;uDO=35;
+  Object.values(ctl).forEach(c=>{c.integ=0;c.prev=0});
+  running=false;$('status').textContent='Simulador reiniciado.';drawAll();
+}
+function kinetics(){
+  const mumax=clamp(n('mumax',.38),0,2),Ks=Math.max(.001,n('Ks',1.5));
+  const fS=S/(Ks+Math.max(S,0.0001));
+  const fT=Math.exp(-Math.pow((T-32)/7,2));
+  const fpH=Math.exp(-Math.pow((pH-5.0)/1.1,2));
+  const fP=1/(1+Math.pow(Math.max(P,0)/85,2));
+  muEff=mumax*fS*fT*fpH*fP;
+  const Yxs=Math.max(.01,n('Yxs',.1));
+  qS=muEff/Yxs + 0.02*S/(5+S);
+}
+function step(dt){
+  kinetics();
+  const kd=clamp(n('kd',.01),0,1), Yxs=Math.max(.01,n('Yxs',.1)),Yps=Math.max(.01,n('Yps',.45));
+  let F=$('operation').value==='fed'?Math.max(0,n('F',50)):0;
+  const Sin=Math.max(0,n('Sin',400));
+  const D=V>1?F/V:0;
+
+  uT=pid('temp',T,n('tempSP',32),dt,0,100,false);
+  uPH=pid('ph',pH,n('phSP',5),dt,-100,100,true);
+  uDO=pid('do',DO,n('doSP',25),dt,0,100,true);
+
+  // biologia
+  const dX=(muEff-kd-D)*X;
+  const dS=D*(Sin-S)-qS*X;
+  const dP=Yps*qS*X-D*P;
+  X=Math.max(0,X+dX*dt);
+  S=Math.max(0,S+dS*dt);
+  P=Math.max(0,P+dP*dt);
+  V=Math.max(1,V+F*dt);
+
+  // temperatura: calor metabólico - remoção + ambiente
+  const heatGen=0.75*muEff*X;
+  const cool=0.12*(uT/100)*(T-20);
+  const env=0.035*(ambient-T);
+  T+= (heatGen-cool+env)*dt;
+
+  // pH: acidificação metabólica + ação ácido/base + relaxação
+  const metabolicAcid=0.07*qS*X;
+  const baseAction=0.10*(uPH/100);
+  const pulse=acidPulse>0?0.35:0;
+  pH+=(-metabolicAcid+baseAction-pulse+0.015*(5.2-pH))*dt;
+  pH=clamp(pH,2.5,8.0);
+  acidPulse=Math.max(0,acidPulse-dt);
+
+  // DO: transferência - consumo
+  const kla=(0.9+4.2*(uDO/100))*klaFactor;
+  const our=2.2*muEff*X/(1+P/80);
+  DO+=(kla*(100-DO)/100*28 - our)*dt;
+  DO=clamp(DO,0,100);
+
+  t+=dt;
+  if(hist.length===0||t-hist[hist.length-1].t>=0.025){
+    hist.push({t,X,S,P,T,pH,DO});
+    if(hist.length>1800)hist.shift();
+  }
+}
+function drawReactor(){
+  const {w,h}=resize(reactor,rc,300);rc.clearRect(0,0,w,h);
+  const cx=w*.5, top=70, rw=Math.min(w*.42,330), rh=h-145, left=cx-rw/2;
+  // jacket
+  rc.strokeStyle='#5b6d96';rc.lineWidth=14;rc.strokeRect(left-10,top-10,rw+20,rh+20);
+  // vessel
+  rc.fillStyle='#101b33';rc.strokeStyle='#d9e3fa';rc.lineWidth=4;rc.fillRect(left,top,rw,rh);rc.strokeRect(left,top,rw,rh);
+  const maxV=Math.max(n('V0',1000)*1.8,n('V0',1000)+n('F',50)*20);
+  const frac=clamp(V/maxV,.18,.95), lh=rh*frac;
+  rc.fillStyle='rgba(121,216,155,.38)';rc.fillRect(left+3,top+rh-lh,rw-6,lh-3);
+  rc.strokeStyle='#79d89b';rc.lineWidth=2;rc.beginPath();rc.moveTo(left+3,top+rh-lh);rc.lineTo(left+rw-3,top+rh-lh);rc.stroke();
+
+  // agitator
+  rc.strokeStyle='#c7d2ea';rc.lineWidth=5;rc.beginPath();rc.moveTo(cx,30);rc.lineTo(cx,top+rh*.7);rc.stroke();
+  const spin=(t*5)%Math.PI;
+  rc.save();rc.translate(cx,top+rh*.68);rc.rotate(spin);rc.strokeStyle='#b49cff';rc.lineWidth=7;
+  rc.beginPath();rc.moveTo(-55,0);rc.lineTo(55,0);rc.moveTo(0,-18);rc.lineTo(0,18);rc.stroke();rc.restore();
+
+  // bubbles
+  rc.fillStyle='rgba(95,211,255,.75)';
+  for(let i=0;i<14;i++){
+    const bx=left+25+((i*47)%Math.max(30,rw-50));
+    const by=top+rh-20-((t*18+i*31)%(Math.max(35,lh-15)));
+    if(by>top+rh-lh){rc.beginPath();rc.arc(bx,by,2+(i%3),0,Math.PI*2);rc.fill()}
+  }
+
+  // feed line
+  rc.strokeStyle='#9fb1d5';rc.lineWidth=10;rc.beginPath();rc.moveTo(35,70);rc.lineTo(left+35,70);rc.lineTo(left+35,top);rc.stroke();
+  rc.fillStyle='#5fd3ff';rc.font='13px system-ui';rc.fillText(`Feed: ${$('operation').value==='fed'?n('F',50).toFixed(0):0} L/h`,35,50);
+
+  // cooling valve indicator
+  rc.fillStyle='#ff7d8f';rc.font='13px system-ui';rc.fillText(`Resfriamento: ${uT.toFixed(0)}%`,Math.max(15,w-190),50);
+  rc.fillStyle='#b49cff';rc.fillText(`Ácido/Base: ${uPH.toFixed(0)}%`,Math.max(15,w-190),70);
+  rc.fillStyle='#8ee3b0';rc.fillText(`Aeração/Agitação: ${uDO.toFixed(0)}%`,Math.max(15,w-220),90);
+
+  rc.fillStyle='#eef3ff';rc.font='bold 15px system-ui';
+  rc.fillText(`V = ${V.toFixed(0)} L`,left+15,top+25);
+  rc.fillText(`X ${X.toFixed(2)} g/L`,left+15,top+48);
+  rc.fillText(`S ${S.toFixed(1)} g/L`,left+15,top+70);
+  rc.fillText(`P ${P.toFixed(1)} g/L`,left+15,top+92);
+}
+function drawPlot(){
+  const {w,h}=resize(plot,pc,300);pc.clearRect(0,0,w,h);
+  const ml=48,mr=20,mt=18,mb=34,iw=w-ml-mr,ih=h-mt-mb;
+  pc.strokeStyle='#62749b';pc.lineWidth=1;pc.strokeRect(ml,mt,iw,ih);
+  const tmax=Math.max(10,t),tmin=Math.max(0,tmax-24), vis=hist.filter(d=>d.t>=tmin);
+  const Xp=x=>ml+(x-tmin)/(tmax-tmin)*iw;
+  pc.font='10px system-ui';pc.fillStyle='#9fb0d0';
+  for(let i=0;i<=5;i++){const yy=mt+ih-i/5*ih;pc.strokeStyle='rgba(98,116,155,.2)';pc.beginPath();pc.moveTo(ml,yy);pc.lineTo(ml+iw,yy);pc.stroke()}
+  function series(key,color,min,max){
+    if(vis.length<2)return;
+    const Y=v=>mt+ih-(clamp(v,min,max)-min)/(max-min)*ih;
+    pc.strokeStyle=color;pc.lineWidth=2;pc.beginPath();
+    vis.forEach((d,i)=>{const x=Xp(d.t),y=Y(d[key]);i?pc.lineTo(x,y):pc.moveTo(x,y)});pc.stroke();
+  }
+  series('X','#79d89b',0,Math.max(20,...vis.map(d=>d.X)));
+  series('S','#5fd3ff',0,Math.max(150,...vis.map(d=>d.S)));
+  series('P','#ffca6b',0,Math.max(80,...vis.map(d=>d.P)));
+  series('T','#ff7d8f',20,45);
+  series('pH','#b49cff',2.5,8);
+  series('DO','#8ee3b0',0,100);
+  pc.fillStyle='#aebbd8';pc.fillText(`tempo: ${tmin.toFixed(0)}–${tmax.toFixed(0)} h`,ml,h-10);
+}
+function readouts(){
+  $('mX').textContent=X.toFixed(3)+' g/L';$('mS').textContent=S.toFixed(2)+' g/L';$('mP').textContent=P.toFixed(2)+' g/L';
+  $('mT').textContent=T.toFixed(2)+' °C';$('mPH').textContent=pH.toFixed(2);$('mDO').textContent=DO.toFixed(1)+' %';
+  $('dTime').textContent=t.toFixed(2)+' h';$('dV').textContent=V.toFixed(0)+' L';$('dMu').textContent=muEff.toFixed(3)+' h⁻¹';
+  $('dQs').textContent=qS.toFixed(3)+' g/(g·h)';$('dProd').textContent=(P*V/1000/Math.max(t,.001)).toFixed(2)+' kg/h média';
+  $('dUT').textContent=uT.toFixed(1)+' %';$('dUPH').textContent=uPH.toFixed(1)+' %';$('dUDO').textContent=uDO.toFixed(1)+' %';
+}
+function drawAll(){drawReactor();drawPlot();readouts()}
+function loop(ts){
+  if(!last)last=ts;
+  const el=Math.min(.08,(ts-last)/1000);last=ts;
+  if(running){
+    acc+=el*clamp(n('speed',3),1,30);
+    const dt=.0025;
+    let c=0;
+    while(acc>=1/60&&c<300){step(dt);acc-=1/60;c++}
+  }
+  drawAll();requestAnimationFrame(loop);
+}
+
+document.querySelectorAll('.tabbtn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tabbtn').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.loop').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');$('loop-'+b.dataset.tab).classList.add('active');
+}));
+$('start').addEventListener('click',()=>{running=true;$('status').textContent='Simulação em execução.'});
+$('pause').addEventListener('click',()=>{running=false;$('status').textContent='Simulação pausada.'});
+$('reset').addEventListener('click',reset);
+$('heatUp').addEventListener('click',()=>{ambient+=5;$('status').textContent='Perturbação aplicada: temperatura ambiente +5 °C.'});
+$('acidPulse').addEventListener('click',()=>{acidPulse=0.25;$('status').textContent='Perturbação aplicada: pulso ácido.'});
+$('oxygenDrop').addEventListener('click',()=>{klaFactor*=0.6;$('status').textContent='Perturbação aplicada: capacidade de transferência de O₂ reduzida em 40%.'});
+$('feedUp').addEventListener('click',()=>{$('F').value=(n('F',50)*1.25).toFixed(1);$('status').textContent='Perturbação aplicada: vazão de alimentação aumentada em 25%.'});
+window.addEventListener('resize',drawAll);
+reset();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
